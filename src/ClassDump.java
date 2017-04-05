@@ -20,7 +20,7 @@ public class ClassDump {
 		dumpedClasses = new TreeSet<String>();
 	}
 
-	private void checkNewClass(Class cl){
+	public void checkNewClass(Class cl){
 		if (cl.getName() != null && !cl.getName().contains("$") 
 				&& !dumpedClasses.contains(cl.getName())) {
 			// check package
@@ -34,23 +34,23 @@ public class ClassDump {
 			}
 		}
 	}
-	
+
 	private String getMethod(Method m) {
 		String res = "";
 		if (!m.isSynthetic() && Modifier.isPublic(m.getModifiers())) {
-			String exceptions = ClassTools.getThrowsExceptions(m
+			String exceptions = ClassTools.getThrowsExceptions(this,m
 					.getExceptionTypes());
 			if (exceptions.length() != 0)
 				exceptions = "throws " + exceptions;
-			res = Modifier.toString(m.getModifiers())
+			res = Modifier.toString(m.getModifiers()).replace("transient", "")
 					+ " "
-					+ ClassTools.getAnnotations(m.getAnnotations())
+					+ ClassTools.getAnnotations(this,m.getAnnotations())
 					+ " "
-					+ m.getReturnType().getName()
+					+ ClassTools.getTypeName(this,m.getReturnType())
 					+ " "
 					+ m.getName()
 					+ " ("
-					+ ClassTools.getParameters(m.getParameters())
+					+ ClassTools.getParameters(this,m.getParameters())
 					+ ") "
 					+ exceptions;
 			if(!Modifier.isAbstract(m.getModifiers()))		
@@ -69,14 +69,14 @@ public class ClassDump {
 	private String getConstructor(Constructor c) {
 		String res = "";
 		if (Modifier.isPublic(c.getModifiers())) {
-			String exceptions = ClassTools.getThrowsExceptions(c
+			String exceptions = ClassTools.getThrowsExceptions(this,c
 					.getExceptionTypes());
 			if (exceptions.length() != 0)
 				exceptions = "throws " + exceptions;
-			res = Modifier.toString(c.getModifiers()) + " "
-					+ ClassTools.getAnnotations(c.getAnnotations()) + " "
+			res = Modifier.toString(c.getModifiers()).replace("transient", "") + " "
+					+ ClassTools.getAnnotations(this,c.getAnnotations()) + " "
 					+ c.getDeclaringClass().getSimpleName() + " ("
-					+ ClassTools.getParameters(c.getParameters()) + ") "
+					+ ClassTools.getParameters(this,c.getParameters()) + ") "
 					+ exceptions + "{" + "__Result__.str+=\"|"
 					+ c.getDeclaringClass().getSimpleName() + "|\";" + "}";
 		}
@@ -87,24 +87,23 @@ public class ClassDump {
 		String res = "";
 		if (Modifier.isPublic(f.getModifiers())) {
 			res += Modifier.toString(f.getModifiers()) + " "
-					+ ClassTools.getAnnotations(f.getAnnotations()) + " "
-					+ f.getType().getName() + " " + f.getName();
+					+ ClassTools.getAnnotations(this,f.getAnnotations()) + " "
+					+ ClassTools.getTypeName(this,f.getType())+" " + f.getName();
 			if (Modifier.isFinal(f.getModifiers()))
 				res += "="
 						+ ClassTools.generateConst(f.getType().getName());
 			res += ";";
 		}
 		checkNewClass(f.getType());
-		return res;
+		return res.replace('$', '.');
 	}
 
 	public void dump(StringBuffer sdump, Class original) {
-		sdump.append("import android.__Result__;\n\n");
 		sdump.append("\n/*===================================*/");
 		sdump.append(String.format("%1$4s %2$20s %3$15s", "\n/*",
 				original.getSimpleName(), "     */"));
 		sdump.append("\n/*===================================*/\n");
-		sdump.append(ClassTools.getAnnotations(original.getAnnotations()));
+		sdump.append(ClassTools.getAnnotations(this,original.getAnnotations()));
 		sdump.append("\n" + Modifier.toString(original.getModifiers()) );
 		// !!!
 		if (!original.isInterface())
@@ -114,9 +113,11 @@ public class ClassDump {
 		sdump.append(" "+original.getSimpleName());
 		// !!!
 		if (original.getSuperclass() != null
-				&& original.getSuperclass() != Object.class)
-			sdump.append(" extends " + original.getSuperclass().getName());
-		String interfaces=ClassTools.getInterfaces(original.getInterfaces(),
+				&& original.getSuperclass() != Object.class){
+			sdump.append(" extends " + original.getSuperclass().getName().replace('$', '.'));
+			checkNewClass(original.getSuperclass());
+		}
+		String interfaces=ClassTools.getInterfaces(this,original.getInterfaces(),
 				original.getGenericInterfaces());
 		if(interfaces.length()>0)
 			if(!original.isInterface()) 
@@ -163,6 +164,7 @@ public class ClassDump {
 			return null;
 		}
 		sdump.append(original.getPackage() + ";\n");
+		sdump.append("import android.__Result__;\n\n");
 		dump(sdump, original);
 		
 		String dir=ClassTools.createDirs(className);
@@ -183,7 +185,11 @@ public class ClassDump {
 	public static void main(String[] args) {
 		ClassDump cd = new ClassDump();
 		cd.dumpedClasses.add("android.widget.Button");
-		cd.dump("android.widget.Button");
+		cd.dump("android.view.View");
+		cd.dump("android.view.ViewDebug");
+		cd.dump("android.animation.ValueAnimator");
+		cd.dump("android.content.res");
+		cd.dump("android.graphics.PorterDuff");
 		// System.out.println(cd.dump("android.view.View"));
 	}
 
